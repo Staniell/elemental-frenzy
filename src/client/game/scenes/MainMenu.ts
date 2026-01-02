@@ -1,75 +1,105 @@
 import { Scene, GameObjects } from 'phaser';
+import { SCENES } from '../core/constants';
 
 export class MainMenu extends Scene {
-  background: GameObjects.Image | null = null;
-  logo: GameObjects.Image | null = null;
-  title: GameObjects.Text | null = null;
+  private background: GameObjects.Image | null = null;
+  private logo: GameObjects.Image | null = null;
+  private title: GameObjects.Text | null = null;
+  private startButton: GameObjects.Text | null = null;
+  private helpButton: GameObjects.Text | null = null;
 
   constructor() {
-    super('MainMenu');
+    super(SCENES.MAIN_MENU);
   }
 
-  /**
-   * Reset cached GameObject references every time the scene starts.
-   * The same Scene instance is reused by Phaser, so we must ensure
-   * stale (destroyed) objects are cleared out when the scene restarts.
-   */
   init(): void {
     this.background = null;
     this.logo = null;
     this.title = null;
+    this.startButton = null;
+    this.helpButton = null;
   }
 
-  create() {
+  create(): void {
     this.refreshLayout();
-
-    // Re-calculate positions whenever the game canvas is resized (e.g. orientation change).
     this.scale.on('resize', () => this.refreshLayout());
-
-    this.input.once('pointerdown', () => {
-      this.scene.start('Game');
-    });
   }
 
-  /**
-   * Positions and (lightly) scales all UI elements based on the current game size.
-   * Call this from create() and from any resize events.
-   */
   private refreshLayout(): void {
     const { width, height } = this.scale;
-
-    // Resize camera to new viewport to prevent black bars
     this.cameras.resize(width, height);
 
-    // Background – stretch to fill the whole canvas
+    // Background
     if (!this.background) {
       this.background = this.add.image(0, 0, 'background').setOrigin(0);
     }
-    this.background!.setDisplaySize(width, height);
+    this.background.setDisplaySize(width, height);
 
-    // Logo – keep aspect but scale down for very small screens
-    const scaleFactor = Math.min(width / 1024, height / 768);
+    const scaleFactor = Math.min(width / 1024, height / 768, 1);
 
+    // Logo
     if (!this.logo) {
       this.logo = this.add.image(0, 0, 'logo');
     }
-    this.logo!.setPosition(width / 2, height * 0.38).setScale(scaleFactor);
+    this.logo.setPosition(width / 2, height * 0.3).setScale(scaleFactor * 0.8);
 
-    // Title text – create once, then scale on resize
-    const baseFontSize = 38;
+    // Title
     if (!this.title) {
       this.title = this.add
-        .text(0, 0, 'Main Menu', {
+        .text(0, 0, '⚔️ ELEMENTAL FRENZY', {
           fontFamily: 'Arial Black',
-          fontSize: `${baseFontSize}px`,
-          color: '#ffffff',
+          fontSize: '42px',
+          color: '#ffd700',
           stroke: '#000000',
           strokeThickness: 8,
           align: 'center',
         })
         .setOrigin(0.5);
     }
-    this.title!.setPosition(width / 2, height * 0.6);
-    this.title!.setScale(scaleFactor);
+    this.title.setPosition(width / 2, height * 0.52);
+    this.title.setScale(scaleFactor);
+
+    // Start Button
+    if (!this.startButton) {
+      this.startButton = this.createButton('▶ START', '#00ff00', () => {
+        this.scene.start(SCENES.GAME);
+      });
+    }
+    this.startButton.setPosition(width / 2, height * 0.68);
+    this.startButton.setScale(scaleFactor);
+
+    // Help Button
+    if (!this.helpButton) {
+      this.helpButton = this.createButton('❓ HELP', '#00bfff', () => {
+        this.scene.start(SCENES.HELP);
+      });
+    }
+    this.helpButton.setPosition(width / 2, height * 0.78);
+    this.helpButton.setScale(scaleFactor);
+  }
+
+  private createButton(
+    label: string,
+    color: string,
+    onClick: () => void
+  ): GameObjects.Text {
+    return this.add
+      .text(0, 0, label, {
+        fontFamily: 'Arial Black',
+        fontSize: '32px',
+        color: color,
+        stroke: '#000000',
+        strokeThickness: 6,
+        padding: { x: 20, y: 10 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerover', function (this: GameObjects.Text) {
+        this.setScale(1.1);
+      })
+      .on('pointerout', function (this: GameObjects.Text) {
+        this.setScale(1);
+      })
+      .on('pointerdown', onClick);
   }
 }

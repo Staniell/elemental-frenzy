@@ -1,161 +1,186 @@
 import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
-import { IncrementResponse, DecrementResponse, InitResponse } from '../../../shared/types/api';
+import { SCENES, KEY_BINDINGS } from '../core/constants';
 
+/**
+ * Main Game Scene - Phase 1 Skeleton
+ * Currently shows placeholder UI and demonstrates keyboard input detection.
+ * Combat logic, enemies, and elements will be added in later phases.
+ */
 export class Game extends Scene {
-  camera: Phaser.Cameras.Scene2D.Camera;
-  background: Phaser.GameObjects.Image;
-  msg_text: Phaser.GameObjects.Text;
-  count: number = 0;
-  countText: Phaser.GameObjects.Text;
-  incButton: Phaser.GameObjects.Text;
-  decButton: Phaser.GameObjects.Text;
-  goButton: Phaser.GameObjects.Text;
+  private background: Phaser.GameObjects.Image | null = null;
+  private statusText: Phaser.GameObjects.Text | null = null;
+  private inputDisplay: Phaser.GameObjects.Text | null = null;
+  private lastInput: string = 'None';
+
+  // Keyboard keys
+  private jumpKeys: Phaser.Input.Keyboard.Key[] = [];
+  private attackKeys: Phaser.Input.Keyboard.Key[] = [];
+  private blockKeys: Phaser.Input.Keyboard.Key[] = [];
 
   constructor() {
-    super('Game');
+    super(SCENES.GAME);
   }
 
-  create() {
-    // Configure camera & background
-    this.camera = this.cameras.main;
-    this.camera.setBackgroundColor(0x222222);
+  init(): void {
+    this.background = null;
+    this.statusText = null;
+    this.inputDisplay = null;
+    this.lastInput = 'None';
+    this.jumpKeys = [];
+    this.attackKeys = [];
+    this.blockKeys = [];
+  }
 
-    // Optional: semi-transparent background image if one has been loaded elsewhere
-    this.background = this.add.image(512, 384, 'background').setAlpha(0.25);
+  create(): void {
+    this.cameras.main.setBackgroundColor(0x1a1a2e);
+    this.setupKeyboardInput();
+    this.setupMouseInput();
+    this.refreshLayout();
 
-    /* -------------------------------------------
-     *  UI Elements
-     * ------------------------------------------- */
-
-    // Display the current count
-    this.countText = this.add
-      .text(512, 340, `Count: ${this.count}`, {
-        fontFamily: 'Arial Black',
-        fontSize: 56,
-        color: '#ffd700',
-        stroke: '#000000',
-        strokeThickness: 10,
-      })
-      .setOrigin(0.5);
-
-    // Fetch the initial counter value from server and update UI
-    void (async () => {
-      try {
-        const response = await fetch('/api/init');
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-        const data = (await response.json()) as InitResponse;
-        this.count = data.count;
-        this.updateCountText();
-      } catch (error) {
-        console.error('Failed to fetch initial count:', error);
-      }
-    })();
-
-    // Button styling helper
-    const createButton = (y: number, label: string, color: string, onClick: () => void) => {
-      const button = this.add
-        .text(512, y, label, {
-          fontFamily: 'Arial Black',
-          fontSize: 36,
-          color: color,
-          backgroundColor: '#444444',
-          padding: {
-            x: 25,
-            y: 12,
-          } as Phaser.Types.GameObjects.Text.TextPadding,
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-        .on('pointerover', () => button.setStyle({ backgroundColor: '#555555' }))
-        .on('pointerout', () => button.setStyle({ backgroundColor: '#444444' }))
-        .on('pointerdown', onClick);
-      return button;
-    };
-
-    // Increment button
-    this.incButton = createButton(this.scale.height * 0.55, 'Increment', '#00ff00', async () => {
-      try {
-        const response = await fetch('/api/increment', { method: 'POST' });
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-        const data = (await response.json()) as IncrementResponse;
-        this.count = data.count;
-        this.updateCountText();
-      } catch (error) {
-        console.error('Failed to increment count:', error);
-      }
-    });
-
-    // Decrement button
-    this.decButton = createButton(this.scale.height * 0.65, 'Decrement', '#ff5555', async () => {
-      try {
-        const response = await fetch('/api/decrement', { method: 'POST' });
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-        const data = (await response.json()) as DecrementResponse;
-        this.count = data.count;
-        this.updateCountText();
-      } catch (error) {
-        console.error('Failed to decrement count:', error);
-      }
-    });
-
-    // Game Over button – navigates to the GameOver scene
-    this.goButton = createButton(this.scale.height * 0.75, 'Game Over', '#ffffff', () => {
-      this.scene.start('GameOver');
-    });
-
-    // Setup responsive layout
-    this.updateLayout(this.scale.width, this.scale.height);
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      const { width, height } = gameSize;
-      this.updateLayout(width, height);
+      this.updateLayout(gameSize.width, gameSize.height);
     });
 
-    // No automatic navigation to GameOver – users can stay in this scene.
+    // ESC to return to menu (for testing)
+    this.input.keyboard?.on('keydown-ESC', () => {
+      this.scene.start(SCENES.MAIN_MENU);
+    });
   }
 
-  updateLayout(width: number, height: number) {
-    // Resize camera viewport to avoid black bars
-    this.cameras.resize(width, height);
+  private setupKeyboardInput(): void {
+    const keyboard = this.input.keyboard;
+    if (!keyboard) return;
 
-    // Center and scale background image to cover screen
-    if (this.background) {
-      this.background.setPosition(width / 2, height / 2);
-      if (this.background.width && this.background.height) {
-        const scale = Math.max(width / this.background.width, height / this.background.height);
-        this.background.setScale(scale);
+    // Map jump keys
+    KEY_BINDINGS.JUMP.forEach((key) => {
+      this.jumpKeys.push(keyboard.addKey(key));
+    });
+
+    // Map attack keys
+    KEY_BINDINGS.ATTACK.forEach((key) => {
+      this.attackKeys.push(keyboard.addKey(key));
+    });
+
+    // Map block keys
+    KEY_BINDINGS.BLOCK.forEach((key) => {
+      this.blockKeys.push(keyboard.addKey(key));
+    });
+
+    // Listen for key events
+    this.jumpKeys.forEach((key) => {
+      key.on('down', () => this.onJump());
+    });
+
+    this.attackKeys.forEach((key) => {
+      key.on('down', () => this.onAttack());
+    });
+
+    this.blockKeys.forEach((key) => {
+      key.on('down', () => this.onBlock());
+    });
+  }
+
+  private setupMouseInput(): void {
+    // Left click = Attack
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.leftButtonDown()) {
+        this.onAttack();
+      } else if (pointer.rightButtonDown()) {
+        this.onBlock();
       }
-    }
+    });
 
-    // Calculate a scale factor relative to a 1024 × 768 reference resolution.
-    // We only shrink on smaller screens – never enlarge above 1×.
-    const scaleFactor = Math.min(Math.min(width / 1024, height / 768), 1);
+    // Disable context menu on right-click
+    this.input.mouse?.disableContextMenu();
+  }
 
-    if (this.countText) {
-      this.countText.setPosition(width / 2, height * 0.45);
-      this.countText.setScale(scaleFactor);
-    }
+  private onJump(): void {
+    this.lastInput = '🦘 JUMP';
+    this.updateInputDisplay();
+    // Actual jump logic will be added in Phase 3
+  }
 
-    if (this.incButton) {
-      this.incButton.setPosition(width / 2, height * 0.55);
-      this.incButton.setScale(scaleFactor);
-    }
+  private onAttack(): void {
+    this.lastInput = '⚔️ ATTACK';
+    this.updateInputDisplay();
+    // Actual attack logic will be added in Phase 3
+  }
 
-    if (this.decButton) {
-      this.decButton.setPosition(width / 2, height * 0.65);
-      this.decButton.setScale(scaleFactor);
-    }
+  private onBlock(): void {
+    this.lastInput = '🛡️ BLOCK';
+    this.updateInputDisplay();
+    // Actual block logic will be added in Phase 3
+  }
 
-    if (this.goButton) {
-      this.goButton.setPosition(width / 2, height * 0.75);
-      this.goButton.setScale(scaleFactor);
+  private updateInputDisplay(): void {
+    if (this.inputDisplay) {
+      this.inputDisplay.setText(`Last Input: ${this.lastInput}`);
+      
+      // Flash effect
+      this.inputDisplay.setColor('#00ff00');
+      this.time.delayedCall(200, () => {
+        this.inputDisplay?.setColor('#ffffff');
+      });
     }
   }
 
-  updateCountText() {
-    this.countText.setText(`Count: ${this.count}`);
+  private refreshLayout(): void {
+    this.updateLayout(this.scale.width, this.scale.height);
+  }
+
+  private updateLayout(width: number, height: number): void {
+    this.cameras.resize(width, height);
+    const scaleFactor = Math.min(width / 1024, height / 768, 1);
+
+    // Background
+    if (!this.background) {
+      this.background = this.add.image(0, 0, 'background').setOrigin(0).setAlpha(0.2);
+    }
+    this.background.setDisplaySize(width, height);
+
+    // Status text
+    if (!this.statusText) {
+      this.statusText = this.add
+        .text(0, 0, '🎮 GAME SCENE - Phase 1 Skeleton\n\nPress ESC to return to menu', {
+          fontFamily: 'Arial',
+          fontSize: '24px',
+          color: '#888888',
+          align: 'center',
+        })
+        .setOrigin(0.5);
+    }
+    this.statusText.setPosition(width / 2, height * 0.3);
+    this.statusText.setScale(scaleFactor);
+
+    // Input display
+    if (!this.inputDisplay) {
+      this.inputDisplay = this.add
+        .text(0, 0, `Last Input: ${this.lastInput}`, {
+          fontFamily: 'Arial Black',
+          fontSize: '36px',
+          color: '#ffffff',
+          stroke: '#000000',
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5);
+    }
+    this.inputDisplay.setPosition(width / 2, height * 0.5);
+    this.inputDisplay.setScale(scaleFactor);
+
+    // Controls hint
+    this.add
+      .text(
+        width / 2,
+        height * 0.75,
+        `JUMP: ${KEY_BINDINGS.JUMP.join('/')}  |  ATTACK: ${KEY_BINDINGS.ATTACK.join('/')}/LClick  |  BLOCK: ${KEY_BINDINGS.BLOCK.join('/')}/RClick`,
+        {
+          fontFamily: 'Courier New',
+          fontSize: '16px',
+          color: '#666666',
+        }
+      )
+      .setOrigin(0.5)
+      .setScale(scaleFactor);
   }
 }

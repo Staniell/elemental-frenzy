@@ -1,66 +1,79 @@
 import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
+import { SCENES } from '../core/constants';
 
 export class GameOver extends Scene {
-  camera: Phaser.Cameras.Scene2D.Camera;
-  background: Phaser.GameObjects.Image;
-  gameover_text: Phaser.GameObjects.Text;
+  private background: Phaser.GameObjects.Image | null = null;
+  private gameoverText: Phaser.GameObjects.Text | null = null;
+  private restartHint: Phaser.GameObjects.Text | null = null;
 
   constructor() {
-    super('GameOver');
+    super(SCENES.GAME_OVER);
   }
 
-  create() {
-    // Configure camera
-    this.camera = this.cameras.main;
-    this.camera.setBackgroundColor(0xff0000);
+  init(): void {
+    this.background = null;
+    this.gameoverText = null;
+    this.restartHint = null;
+  }
 
-    // Background – create once, full-screen
-    this.background = this.add.image(0, 0, 'background').setOrigin(0).setAlpha(0.5);
-
-    // "Game Over" text – created once and scaled responsively
-    this.gameover_text = this.add
-      .text(0, 0, 'Game Over', {
-        fontFamily: 'Arial Black',
-        fontSize: '64px',
-        color: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 8,
-        align: 'center',
-      })
-      .setOrigin(0.5);
-
-    // Initial responsive layout
-    this.updateLayout(this.scale.width, this.scale.height);
-
-    // Update layout on canvas resize / orientation change
+  create(): void {
+    this.cameras.main.setBackgroundColor(0x1a0000);
+    this.refreshLayout();
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      const { width, height } = gameSize;
-      this.updateLayout(width, height);
+      this.updateLayout(gameSize.width, gameSize.height);
     });
 
-    // Return to Main Menu on tap / click
+    // Return to Main Menu on tap/click or SPACE
     this.input.once('pointerdown', () => {
-      this.scene.start('MainMenu');
+      this.scene.start(SCENES.MAIN_MENU);
     });
+    this.input.keyboard?.on('keydown-SPACE', () => {
+      this.scene.start(SCENES.MAIN_MENU);
+    });
+  }
+
+  private refreshLayout(): void {
+    this.updateLayout(this.scale.width, this.scale.height);
   }
 
   private updateLayout(width: number, height: number): void {
-    // Resize camera viewport to prevent black bars
     this.cameras.resize(width, height);
+    const scaleFactor = Math.min(width / 1024, height / 768, 1);
 
-    // Stretch background to fill entire screen
-    if (this.background) {
-      this.background.setDisplaySize(width, height);
+    // Background
+    if (!this.background) {
+      this.background = this.add.image(0, 0, 'background').setOrigin(0).setAlpha(0.3);
     }
+    this.background.setDisplaySize(width, height);
 
-    // Compute scale factor (never enlarge above 1×)
-    const scaleFactor = Math.min(Math.min(width / 1024, height / 768), 1);
-
-    // Centre and scale the game-over text
-    if (this.gameover_text) {
-      this.gameover_text.setPosition(width / 2, height / 2);
-      this.gameover_text.setScale(scaleFactor);
+    // Game Over text
+    if (!this.gameoverText) {
+      this.gameoverText = this.add
+        .text(0, 0, '💀 GAME OVER', {
+          fontFamily: 'Arial Black',
+          fontSize: '64px',
+          color: '#ff4444',
+          stroke: '#000000',
+          strokeThickness: 8,
+          align: 'center',
+        })
+        .setOrigin(0.5);
     }
+    this.gameoverText.setPosition(width / 2, height * 0.4);
+    this.gameoverText.setScale(scaleFactor);
+
+    // Restart hint
+    if (!this.restartHint) {
+      this.restartHint = this.add
+        .text(0, 0, 'Click or press SPACE to continue', {
+          fontFamily: 'Arial',
+          fontSize: '24px',
+          color: '#aaaaaa',
+        })
+        .setOrigin(0.5);
+    }
+    this.restartHint.setPosition(width / 2, height * 0.6);
+    this.restartHint.setScale(scaleFactor);
   }
 }
